@@ -17,19 +17,19 @@ jobs:
         distribution: 'zulu'
         java-version: '17'
 
-    - name: Install Gradle
-      run: sudo apt-get install -y gradle
-
-    - name: Clear and Reset Environment
+    - name: Clear and Absolute Reset
       run: |
+        # تنظيف كامل للتخلص من أي ملفات مشوهة قديمة
         rm -rf app gradle build.gradle settings.gradle gradlew gradlew.bat
-
+        
+        # إنشاء المجلدات الرسمية لهيكل التطبيق
         mkdir -p app/src/main/java/com/example/hak
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
 
-    - name: Generate Configuration Files
+    - name: Generate Root Configuration
       run: |
+        # 1. ملف settings.gradle في المجلد الرئيسي
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -49,18 +49,32 @@ jobs:
         include ':app'
         EOF
 
+        # 2. ملف build.gradle في المجلد الرئيسي
         cat << 'EOF' > build.gradle
-        plugins {
-            id 'com.android.application' version '8.1.1' apply false
-            id 'org.jetbrains.kotlin.android' version '1.8.10' apply false
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.1.1'
+                classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.10'
+            }
+        }
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
         }
         EOF
 
+    - name: Generate App Configuration
+      run: |
+        # 3. ملف build.gradle داخل مجلد app الافتراضي
         cat << 'EOF' > app/build.gradle
-        plugins {
-            id 'com.android.application'
-            id 'org.jetbrains.kotlin.android'
-        }
+        apply plugin: 'com.android.application'
+        apply plugin: 'kotlin-android'
 
         android {
             namespace 'com.example.hak'
@@ -79,12 +93,10 @@ jobs:
                     minifyEnabled false
                 }
             }
-
             compileOptions {
                 sourceCompatibility JavaVersion.VERSION_17
                 targetCompatibility JavaVersion.VERSION_17
             }
-
             kotlinOptions {
                 jvmTarget = '17'
             }
@@ -98,18 +110,16 @@ jobs:
         }
         EOF
 
-    - name: Generate Code and Resources
+    - name: Inject Android Manifest and Layout
       run: |
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-
             <application
                 android:allowBackup="true"
                 android:label="Billiard Lines"
                 android:theme="@style/Theme.AppCompat.NoActionBar">
-
                 <activity
                     android:name=".MainActivity"
                     android:exported="true">
@@ -118,7 +128,6 @@ jobs:
                         <category android:name="android.intent.category.LAUNCHER"/>
                     </intent-filter>
                 </activity>
-
                 <service
                     android:name=".OverlayService"
                     android:exported="false"/>
@@ -133,20 +142,17 @@ jobs:
             android:orientation="vertical"
             android:gravity="center"
             android:padding="16dp">
-
             <Button
                 android:id="@+id/btnStart"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Start Overlay"/>
-
             <Button
                 android:id="@+id/btnStop"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Stop Overlay"
                 android:layout_marginTop="8dp"/>
-
             <SeekBar
                 android:id="@+id/seekBarLength"
                 android:layout_width="match_parent"
@@ -164,11 +170,10 @@ jobs:
         </resources>
         EOF
 
-    - name: Generate Kotlin Code
+    - name: Inject Source Code (Kotlin)
       run: |
         cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
         package com.example.hak
-
         import android.content.Intent
         import android.net.Uri
         import android.os.Build
@@ -178,7 +183,6 @@ jobs:
         import androidx.appcompat.app.AppCompatActivity
 
         class MainActivity : AppCompatActivity() {
-
             override fun onCreate(savedInstanceState: Bundle?) {
                 super.onCreate(savedInstanceState)
                 setContentView(R.layout.activity_main)
@@ -215,7 +219,6 @@ jobs:
 
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayService.kt
         package com.example.hak
-
         import android.app.Service
         import android.content.*
         import android.graphics.PixelFormat
@@ -223,7 +226,6 @@ jobs:
         import android.view.*
 
         class OverlayService : Service() {
-
             private lateinit var windowManager: WindowManager
             private lateinit var overlayView: OverlayView
 
@@ -235,7 +237,6 @@ jobs:
 
             override fun onCreate() {
                 super.onCreate()
-
                 windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
                 overlayView = OverlayView(this)
 
@@ -251,7 +252,6 @@ jobs:
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT
                 )
-
                 windowManager.addView(overlayView, params)
             }
 
@@ -264,18 +264,15 @@ jobs:
 
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayView.kt
         package com.example.hak
-
         import android.content.Context
         import android.graphics.*
         import android.view.View
 
         class OverlayView(context: Context) : View(context) {
-
             private val paint = Paint().apply {
                 color = Color.RED
                 strokeWidth = 5f
             }
-
             override fun onDraw(canvas: Canvas) {
                 val w = width / 2f
                 val h = height / 2f
@@ -283,25 +280,20 @@ jobs:
 
                 canvas.drawLine(w - len, h, w + len, h, paint)
                 canvas.drawLine(w, h - len, w, h + len, paint)
-
                 invalidate()
             }
         }
         EOF
 
-    - name: Setup Gradle
+    - name: Setup Gradle Environment
       uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: 8.1.1
 
-    - name: Generate Gradle Wrapper
-      run: gradle wrapper
+    - name: Build Application Package
+      run: gradle :app:assembleDebug
 
-    - name: Give permission
-      run: chmod +x gradlew
-
-    - name: Build APK
-      run: ./gradlew assembleDebug
-
-    - name: Upload APK
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: billiard-lines-apk
