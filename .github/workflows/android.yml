@@ -17,19 +17,19 @@ jobs:
         distribution: 'zulu'
         java-version: '17'
 
-    - name: Setup Gradle Environment
-      uses: gradle/actions/setup-gradle@v3
-      with:
-        gradle-version: 8.1.1
-
-    - name: Auto-Detect Project Folder and Build
+    - name: Clean Slate and Reset Structure
       run: |
-        # البحث التلقائي عن المجلد الذي يحتوي على ملف src و build.gradle والدخول إليه مهما كان اسمه
-        PROJECT_DIR=$(find . -maxdepth 2 -name "src" -type d -exec dirname {} \;)
-        echo "Found Android project folder at: $PROJECT_DIR"
-        cd "$PROJECT_DIR"
+        # مسح كامل وشامل لأي مجلدات قديمة (بما فيها برنامج أو app) لمنع أي تضارب في المسارات
+        rm -rf app gradle build.gradle settings.gradle gradlew gradlew.bat برنامج
         
-        # 1. إنشاء ملف settings.gradle نظيف داخل مجلد المشروع لمنع تضارب الخوادم
+        # إنشاء هيكل مجلدات أندرويد القياسي في المجلد الرئيسي مباشرة
+        mkdir -p app/src/main/java/com/example/hak
+        mkdir -p app/src/main/res/layout
+        mkdir -p app/src/main/res/values
+
+    - name: Create Root Configuration Files
+      run: |
+        # 1. إنشاء ملف settings.gradle الرئيسي وتحديد الخوادم فيه بشكل صارم
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -46,9 +46,10 @@ jobs:
             }
         }
         rootProject.name = "billiard-lines"
+        include ':app'
         EOF
 
-        # 2. إنشاء ملف build.gradle الرئيسي النظيف
+        # 2. إنشاء ملف build.gradle الرئيسي (بدون allprojects لتفادي التعارض)
         cat << 'EOF' > build.gradle
         buildscript {
             repositories {
@@ -62,11 +63,238 @@ jobs:
         }
         EOF
 
-        # 3. تشغيل عملية البناء مباشرة من داخل مجلد المشروع
-        gradle assembleDebug
+    - name: Create App Module Configuration
+      run: |
+        # 3. إنشاء ملف build.gradle الخاص بموديول التطبيق الفرعي داخل مجلد app
+        cat << 'EOF' > app/build.gradle
+        apply plugin: 'com.android.application'
+        apply plugin: 'kotlin-android'
+
+        android {
+            namespace 'com.example.hak'
+            compileSdk 34
+
+            defaultConfig {
+                applicationId "com.example.hak"
+                minSdk 26
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+
+            buildTypes {
+                release {
+                    minifyEnabled false
+                }
+            }
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+            kotlinOptions {
+                jvmTarget = '17'
+            }
+        }
+
+        dependencies {
+            implementation 'androidx.core:core-ktx:1.12.0'
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'com.google.android.material:material:1.11.0'
+            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+        }
+        EOF
+
+    - name: Inject Source Code and Manifest
+      run: |
+        # 4. حقن ملف المانيفست بالصلاحيات اللازمة للتراكب (Overlay)
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+            <application
+                android:allowBackup="true"
+                android:label="Billiard Lines"
+                android:supportsRtl="true"
+                android:theme="@style/Theme.AppCompat.NoActionBar">
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN"/>
+                        <category android:name="android.intent.category.LAUNCHER"/>
+                    </intent-filter>
+                </activity>
+                <service
+                    android:name=".OverlayService"
+                    android:exported="false"/>
+            </application>
+        </manifest>
+        EOF
+
+        # 5. حقن واجهة المستخدم (Layout) تحتوي على الأزرار وشريط التحكم
+        cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="16dp">
+            <Button
+                android:id="@+id/btnStart"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Start Overlay"/>
+            <Button
+                android:id="@+id/btnStop"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stop Overlay"
+                android:layout_marginTop="8dp"/>
+            <SeekBar
+                android:id="@+id/seekBarLength"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="500"
+                android:progress="200"
+                android:layout_marginTop="16dp"/>
+        </LinearLayout>
+        EOF
+
+        cat << 'EOF' > app/src/main/res/values/colors.xml
+        <resources>
+            <color name="black">#000000</color>
+            <color name="white">#FFFFFF</color>
+        </resources>
+        EOF
+
+    - name: Inject Kotlin Files
+      run: |
+        # 6. ملف MainActivity.kt لتهيئة واجهة التحكم وتشغيل الخدمة
+        cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
+        package com.example.hak
+        import android.content.Intent
+        import android.net.Uri
+        import android.os.Build
+        import android.os.Bundle
+        import android.provider.Settings
+        import android.widget.*
+        import androidx.appcompat.app.AppCompatActivity
+
+        class MainActivity : AppCompatActivity() {
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                setContentView(R.layout.activity_main)
+
+                val btnStart = findViewById<Button>(R.id.btnStart)
+                val btnStop = findViewById<Button>(R.id.btnStop)
+                val seekBar = findViewById<SeekBar>(R.id.seekBarLength)
+
+                btnStart.setOnClickListener {
+                    if (Settings.canDrawOverlays(this)) {
+                        startService(Intent(this, OverlayService::class.java))
+                    } else {
+                        startActivity(Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        ))
+                    }
+                }
+
+                btnStop.setOnClickListener {
+                    stopService(Intent(this, OverlayService::class.java))
+                }
+
+                seekBar.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        OverlayService.lineLength = progress
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+                })
+            }
+        }
+        EOF
+
+        # 7. خدمة OverlayService.kt لإدارة نافذة التراكب فوق الألعاب
+        cat << 'EOF' > app/src/main/java/com/example/hak/OverlayService.kt
+        package com.example.hak
+        import android.app.Service
+        import android.content.*
+        import android.graphics.PixelFormat
+        import android.os.*
+        import android.view.*
+
+        class OverlayService : Service() {
+            private lateinit var windowManager: WindowManager
+            private lateinit var overlayView: OverlayView
+
+            companion object {
+                var lineLength = 200
+            }
+
+            override fun onBind(intent: Intent?) = null
+
+            override fun onCreate() {
+                super.onCreate()
+                windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+                overlayView = OverlayView(this)
+
+                val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else
+                    WindowManager.LayoutParams.TYPE_PHONE
+
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    type,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    PixelFormat.TRANSLUCENT
+                )
+                windowManager.addView(overlayView, params)
+            }
+
+            override fun onDestroy() {
+                super.onDestroy()
+                windowManager.removeView(overlayView)
+            }
+        }
+        EOF
+
+        # 8. ملف OverlayView.kt لرسم الخطوط المتقاطعة للعبة البلياردو على الشاشة
+        cat << 'EOF' > app/src/main/java/com/example/hak/OverlayView.kt
+        package com.example.hak
+        import android.content.Context
+        import android.graphics.*
+        import android.view.View
+
+        class OverlayView(context: Context) : View(context) {
+            private val paint = Paint().apply {
+                color = Color.RED
+                strokeWidth = 5f
+            }
+            override fun onDraw(canvas: Canvas) {
+                val w = width / 2f
+                val h = height / 2f
+                val len = OverlayService.lineLength.toFloat()
+
+                canvas.drawLine(w - len, h, w + len, h, paint)
+                canvas.drawLine(w, h - len, w, h + len, paint)
+                invalidate()
+            }
+        }
+        EOF
+
+    - name: Setup Gradle Environment
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: 8.1.1
+
+    - name: Build Application Package
+      run: gradle :app:assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: billiard-lines-apk
-        path: "**/build/outputs/apk/debug/*-debug.apk"
+        path: app/build/outputs/apk/debug/app-debug.apk
