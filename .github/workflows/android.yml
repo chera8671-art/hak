@@ -17,19 +17,19 @@ jobs:
         distribution: 'zulu'
         java-version: '17'
 
+    - name: Install Gradle
+      run: sudo apt-get install -y gradle
+
     - name: Clear and Reset Environment
       run: |
-        # تنظيف كامل لأي تراكمات قديمة في المستودع
-        rm -rf app app-module برنامج res gradle build.gradle settings.gradle gradlew gradlew.bat
-        
-        # إعادة بناء المجلدات الأساسية للمشروع
+        rm -rf app gradle build.gradle settings.gradle gradlew gradlew.bat
+
         mkdir -p app/src/main/java/com/example/hak
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
 
     - name: Generate Configuration Files
       run: |
-        # إنشاء ملف settings.gradle
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -49,24 +49,23 @@ jobs:
         include ':app'
         EOF
 
-        # إنشاء ملف build.gradle الرئيسي
         cat << 'EOF' > build.gradle
         plugins {
             id 'com.android.application' version '8.1.1' apply false
-            id 'com.android.library' version '8.1.1' apply false
             id 'org.jetbrains.kotlin.android' version '1.8.10' apply false
         }
         EOF
 
-        # إنشاء ملف build.gradle الخاص بتطبيق أندرويد
         cat << 'EOF' > app/build.gradle
         plugins {
             id 'com.android.application'
             id 'org.jetbrains.kotlin.android'
         }
+
         android {
             namespace 'com.example.hak'
             compileSdk 34
+
             defaultConfig {
                 applicationId "com.example.hak"
                 minSdk 26
@@ -74,19 +73,23 @@ jobs:
                 versionCode 1
                 versionName "1.0"
             }
+
             buildTypes {
                 release {
                     minifyEnabled false
                 }
             }
+
             compileOptions {
                 sourceCompatibility JavaVersion.VERSION_17
                 targetCompatibility JavaVersion.VERSION_17
             }
+
             kotlinOptions {
                 jvmTarget = '17'
             }
         }
+
         dependencies {
             implementation 'androidx.core:core-ktx:1.12.0'
             implementation 'androidx.appcompat:appcompat:1.6.1'
@@ -97,104 +100,109 @@ jobs:
 
     - name: Generate Code and Resources
       run: |
-        # حقن ملف Manifest الخاص بصلاحية النافذة المنبثقة
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-            package="com.example.hak">
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+
             <application
                 android:allowBackup="true"
                 android:label="Billiard Lines"
-                android:supportsRtl="true"
                 android:theme="@style/Theme.AppCompat.NoActionBar">
+
                 <activity
                     android:name=".MainActivity"
                     android:exported="true">
                     <intent-filter>
-                        <action android:name="android.intent.action.MAIN" />
-                        <category android:name="android.intent.category.LAUNCHER" />
+                        <action android:name="android.intent.action.MAIN"/>
+                        <category android:name="android.intent.category.LAUNCHER"/>
                     </intent-filter>
                 </activity>
+
                 <service
                     android:name=".OverlayService"
-                    android:exported="false" />
+                    android:exported="false"/>
             </application>
         </manifest>
         EOF
 
-        # حقن واجهة التحكم الرئيسية والـ SeekBar لضبط طول الخطوط
         cat << 'EOF' > app/src/main/res/layout/activity_main.xml
-        <?xml version="1.0" encoding="utf-8"?>
         <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
             android:gravity="center"
             android:padding="16dp">
+
             <Button
                 android:id="@+id/btnStart"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Start Overlay" />
+                android:text="Start Overlay"/>
+
             <Button
                 android:id="@+id/btnStop"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Stop Overlay"
-                android:layout_marginTop="8dp" />
+                android:layout_marginTop="8dp"/>
+
             <SeekBar
                 android:id="@+id/seekBarLength"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
                 android:max="500"
-                android:progress="200" />
+                android:progress="200"
+                android:layout_marginTop="16dp"/>
         </LinearLayout>
         EOF
 
-        # حقن ملف الألوان الأساسي
         cat << 'EOF' > app/src/main/res/values/colors.xml
-        <?xml version="1.0" encoding="utf-8"?>
         <resources>
-            <color name="black">#FF000000</color>
-            <color name="white">#FFFFFFFF</color>
+            <color name="black">#000000</color>
+            <color name="white">#FFFFFF</color>
         </resources>
         EOF
 
-    - name: Generate Application Code (Kotlin)
+    - name: Generate Kotlin Code
       run: |
-        # كود النشاط الرئيسي MainActivity
         cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
         package com.example.hak
+
         import android.content.Intent
         import android.net.Uri
         import android.os.Build
         import android.os.Bundle
         import android.provider.Settings
-        import android.widget.Button
-        import android.widget.SeekBar
-        import android.widget.Toast
+        import android.widget.*
         import androidx.appcompat.app.AppCompatActivity
+
         class MainActivity : AppCompatActivity() {
-            private val OVERLAY_PERMISSION_REQ_CODE = 123
+
             override fun onCreate(savedInstanceState: Bundle?) {
                 super.onCreate(savedInstanceState)
                 setContentView(R.layout.activity_main)
+
                 val btnStart = findViewById<Button>(R.id.btnStart)
                 val btnStop = findViewById<Button>(R.id.btnStop)
-                val seekBarLength = findViewById<SeekBar>(R.id.seekBarLength)
+                val seekBar = findViewById<SeekBar>(R.id.seekBarLength)
+
                 btnStart.setOnClickListener {
-                    if (checkOverlayPermission()) {
+                    if (Settings.canDrawOverlays(this)) {
                         startService(Intent(this, OverlayService::class.java))
                     } else {
-                        requestOverlayPermission()
+                        startActivity(Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        ))
                     }
                 }
+
                 btnStop.setOnClickListener {
                     stopService(Intent(this, OverlayService::class.java))
                 }
-                seekBarLength.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+
+                seekBar.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                         OverlayService.lineLength = progress
                     }
@@ -202,118 +210,98 @@ jobs:
                     override fun onStopTrackingTouch(seekBar: SeekBar?) {}
                 })
             }
-            private fun checkOverlayPermission(): Boolean {
-                return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    Settings.canDrawOverlays(this)
-                } else {
-                    true
-                }
-            }
-            private fun requestOverlayPermission() {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:$packageName")
-                    )
-                    startActivityForResult(intent, OVERLAY_PERMISSION_REQ_CODE)
-                }
-            }
-            override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-                super.onActivityResult(requestCode, resultCode, data)
-                if (requestCode == OVERLAY_PERMISSION_REQ_CODE) {
-                    if (checkOverlayPermission()) {
-                        startService(Intent(this, OverlayService::class.java))
-                    } else {
-                        Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
         }
         EOF
 
-        # كود الخلفية والخدمة المشغلة للنافذة المنبثقة OverlayService
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayService.kt
         package com.example.hak
+
         import android.app.Service
-        import android.content.Context
-        import android.content.Intent
+        import android.content.*
         import android.graphics.PixelFormat
-        import android.os.Build
-        import android.os.IBinder
-        import android.view.Gravity
-        import android.view.WindowManager
+        import android.os.*
+        import android.view.*
+
         class OverlayService : Service() {
-            private var windowManager: WindowManager? = null
-            private var overlayView: OverlayView? = null
+
+            private lateinit var windowManager: WindowManager
+            private lateinit var overlayView: OverlayView
+
             companion object {
-                var lineLength: Int = 200
+                var lineLength = 200
             }
-            override fun onBind(intent: Intent?): IBinder? = null
+
+            override fun onBind(intent: Intent?) = null
+
             override fun onCreate() {
                 super.onCreate()
-                windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+
+                windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
                 overlayView = OverlayView(this)
-                val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+                val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                } else {
+                else
                     WindowManager.LayoutParams.TYPE_PHONE
-                }
+
                 val params = WindowManager.LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT,
-                    layoutFlag,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    type,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT
                 )
-                params.gravity = Gravity.TOP or Gravity.LEFT
-                params.x = 0
-                params.y = 0
-                windowManager?.addView(overlayView, params)
+
+                windowManager.addView(overlayView, params)
             }
+
             override fun onDestroy() {
                 super.onDestroy()
-                if (overlayView != null) {
-                    windowManager?.removeView(overlayView)
-                }
+                windowManager.removeView(overlayView)
             }
         }
         EOF
 
-        # كود رسم خطوط البلياردو المتقاطعة OverlayView
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayView.kt
         package com.example.hak
+
         import android.content.Context
-        import android.graphics.Canvas
-        import android.graphics.Color
-        import android.graphics.Paint
+        import android.graphics.*
         import android.view.View
+
         class OverlayView(context: Context) : View(context) {
+
             private val paint = Paint().apply {
                 color = Color.RED
                 strokeWidth = 5f
-                style = Paint.Style.STROKE
             }
+
             override fun onDraw(canvas: Canvas) {
-                super.onDraw(canvas)
-                val width = canvas.width.toFloat()
-                val height = canvas.height.toFloat()
-                val centerX = width / 2
-                val centerY = height / 2
-                val currentLength = OverlayService.lineLength.toFloat()
-                canvas.drawLine(centerX - currentLength, centerY, centerX + currentLength, centerY, paint)
-                canvas.drawLine(centerX, centerY - currentLength, centerX, centerY + currentLength, paint)
+                val w = width / 2f
+                val h = height / 2f
+                val len = OverlayService.lineLength.toFloat()
+
+                canvas.drawLine(w - len, h, w + len, h, paint)
+                canvas.drawLine(w, h - len, w, h + len, paint)
+
                 invalidate()
             }
         }
         EOF
 
-    - name: Execute Build via Official Gradle Action
+    - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
-      with:
-        gradle-version: 8.1.1
-        arguments: assembleDebug
 
-    - name: Upload APK Artifact
+    - name: Generate Gradle Wrapper
+      run: gradle wrapper
+
+    - name: Give permission
+      run: chmod +x gradlew
+
+    - name: Build APK
+      run: ./gradlew assembleDebug
+
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: billiard-lines-apk
