@@ -20,24 +20,18 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    - name: Fix Structure and Sync Paths
+    - name: Clean and Reset Structure
       run: |
-        # التأكد من تنظيف أي ملفات إعدادات قديمة خارج مجلد برنامج لضمان عدم التضارب
-        rm -f settings.gradle build.gradle gradle.properties
+        # تنظيف شامل لكل المجلدات السابقة لتفادي التكرار والأسماء المترجمة
+        rm -rf app app-module برنامج res جرادلر build.gradle settings.gradle gradle
         
-        # الانتقال إلى المجلد الفعلي للمشروع
-        cd برنامج
-        
-        # إعادة إنشاء المجلدات الأساسية للتأكد من سلامة الهيكل
-        mkdir -p src/main/java/com/example/hak
-        mkdir -p src/main/res/layout
-        mkdir -p src/main/res/values
-        mkdir -p gradle/wrapper
+        # إنشاء المجلدات بالأسماء الإنجليزية الرسمية التي يطلبها السيرفر
+        mkdir -p app/src/main/java/com/example/hak
+        mkdir -p app/src/main/res/layout
+        mkdir -p app/src/main/res/values
 
-    - name: Write Android Config Files
+    - name: Create Base Config Files
       run: |
-        cd برنامج
-        
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -65,9 +59,6 @@ jobs:
         }
         EOF
 
-        # إنشاء مجلد app لتفادي أخطاء الاندماج
-        mkdir -p app
-        
         cat << 'EOF' > app/build.gradle
         plugins {
             id 'com.android.application'
@@ -104,31 +95,220 @@ jobs:
         }
         EOF
 
-        cat << 'EOF' > gradle/wrapper/gradle-wrapper.properties
-        distributionBase=GRADLE_USER_HOME
-        distributionPath=wrapper/dists
-        distributionUrl=https\://services.gradle.org/distributions/gradle-8.1.1-bin.zip
-        zipStoreBase=GRADLE_USER_HOME
-        zipStorePath=wrapper/dists
+    - name: Inject Source Code Files
+      run: |
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.example.hak">
+            <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+            <application
+                android:allowBackup="true"
+                android:label="Billiard Lines"
+                android:supportsRtl="true"
+                android:theme="@style/Theme.AppCompat.NoActionBar">
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+                <service
+                    android:name=".OverlayService"
+                    android:exported="false" />
+            </application>
+        </manifest>
         EOF
 
-        # نقل ملفات الأكواد البرمجية إلى مكانها الصحيح داخل مجلد app الجديد
-        mv src app/src
+        cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="16dp">
+            <Button
+                android:id="@+id/btnStart"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Start Overlay" />
+            <Button
+                android:id="@+id/btnStop"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stop Overlay"
+                android:layout_marginTop="8dp" />
+            <SeekBar
+                android:id="@+id/seekBarLength"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:max="500"
+                android:progress="200" />
+        </LinearLayout>
+        EOF
 
-    - name: Generate Gradle Wrapper Script
+        cat << 'EOF' > app/src/main/res/values/colors.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="black">#FF000000</color>
+            <color name="white">#FFFFFFFF</color>
+        </resources>
+        EOF
+
+    - name: Inject Kotlin Code
       run: |
-        cd برنامج
-        # إنشاء ملف تدشين لـ gradle محلي يتوافق مع بيئة لينكس تلقائياً لتجنب مشاكل الصلاحيات
+        cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
+        package com.example.hak
+        import android.content.Intent
+        import android.net.Uri
+        import android.os.Build
+        import android.os.Bundle
+        import android.provider.Settings
+        import android.widget.Button
+        import android.widget.SeekBar
+        import android.widget.Toast
+        import androidx.appcompat.app.AppCompatActivity
+        class MainActivity : AppCompatActivity() {
+            private val OVERLAY_PERMISSION_REQ_CODE = 123
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                setContentView(R.layout.activity_main)
+                val btnStart = findViewById<Button>(R.id.btnStart)
+                val btnStop = findViewById<Button>(R.id.btnStop)
+                val seekBarLength = findViewById<SeekBar>(R.id.seekBarLength)
+                btnStart.setOnClickListener {
+                    if (checkOverlayPermission()) {
+                        startService(Intent(this, OverlayService::class.java))
+                    } else {
+                        requestOverlayPermission()
+                    }
+                }
+                btnStop.setOnClickListener {
+                    stopService(Intent(this, OverlayService::class.java))
+                }
+                seekBarLength.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        OverlayService.lineLength = progress
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+                })
+            }
+            private fun checkOverlayPermission(): Boolean {
+                return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    Settings.canDrawOverlays(this)
+                } else {
+                    true
+                }
+            }
+            private fun requestOverlayPermission() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
+                    startActivityForResult(intent, OVERLAY_PERMISSION_REQ_CODE)
+                }
+            }
+            override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+                super.onActivityResult(requestCode, resultCode, data)
+                if (requestCode == OVERLAY_PERMISSION_REQ_CODE) {
+                    if (checkOverlayPermission()) {
+                        startService(Intent(this, OverlayService::class.java))
+                    } else {
+                        Toast.makeText(this, "Permission denied", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+        EOF
+
+        cat << 'EOF' > app/src/main/java/com/example/hak/OverlayService.kt
+        package com.example.hak
+        import android.app.Service
+        import android.content.Context
+        import android.content.Intent
+        import android.graphics.PixelFormat
+        import android.os.Build
+        import android.os.IBinder
+        import android.view.Gravity
+        import android.view.WindowManager
+        class OverlayService : Service() {
+            private var windowManager: WindowManager? = null
+            private var overlayView: OverlayView? = null
+            companion object {
+                var lineLength: Int = 200
+            }
+            override fun onBind(intent: Intent?): IBinder? = null
+            override fun onCreate() {
+                super.onCreate()
+                windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                overlayView = OverlayView(this)
+                val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    WindowManager.LayoutParams.TYPE_PHONE
+                }
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    layoutFlag,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    PixelFormat.TRANSLUCENT
+                )
+                params.gravity = Gravity.TOP or Gravity.LEFT
+                params.x = 0
+                params.y = 0
+                windowManager?.addView(overlayView, params)
+            }
+            override fun onDestroy() {
+                super.onDestroy()
+                if (overlayView != null) {
+                    windowManager?.removeView(overlayView)
+                }
+            }
+        }
+        EOF
+
+        cat << 'EOF' > app/src/main/java/com/example/hak/OverlayView.kt
+        package com.example.hak
+        import android.content.Context
+        import android.graphics.Canvas
+        import android.graphics.Color
+        import android.graphics.Paint
+        import android.view.View
+        class OverlayView(context: Context) : View(context) {
+            private val paint = Paint().apply {
+                color = Color.RED
+                strokeWidth = 5f
+                style = Paint.Style.STROKE
+            }
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                val width = canvas.width.toFloat()
+                val height = canvas.height.toFloat()
+                val centerX = width / 2
+                val centerY = height / 2
+                val currentLength = OverlayService.lineLength.toFloat()
+                canvas.drawLine(centerX - currentLength, centerY, centerX + currentLength, centerY, paint)
+                canvas.drawLine(centerX, centerY - currentLength, centerX, centerY + currentLength, paint)
+                invalidate()
+            }
+        }
+        EOF
+
+    - name: Generate Wrapper and Build APK
+      run: |
         gradle wrapper --gradle-version 8.1.1
         chmod +x gradlew
-
-    - name: Build Android App (APK)
-      run: |
-        cd برنامج
         ./gradlew assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: billiard-lines-apk
-        path: برنامج/app/build/outputs/apk/debug/app-debug.apk
+        path: app/build/outputs/apk/debug/app-debug.apk
