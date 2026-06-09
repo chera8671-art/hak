@@ -17,19 +17,17 @@ jobs:
         distribution: 'zulu'
         java-version: '17'
 
-    - name: Clear and Absolute Reset
-      run: |
-        # تنظيف كامل للتخلص من أي ملفات مشوهة قديمة
-        rm -rf app gradle build.gradle settings.gradle gradlew gradlew.bat
-        
-        # إنشاء المجلدات الرسمية لهيكل التطبيق
-        mkdir -p app/src/main/java/com/example/hak
-        mkdir -p app/src/main/res/layout
-        mkdir -p app/src/main/res/values
+    - name: Setup Gradle Environment
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: 8.1.1
 
-    - name: Generate Root Configuration
+    - name: Fix Configurations & Build from Program Folder
       run: |
-        # 1. ملف settings.gradle في المجلد الرئيسي (هنا نعتمد الخوادم لضمان عدم التعارض)
+        # الدخول إلى المجلد الذي يحتوي على المشروع بناءً على صور المستودع لديك
+        cd "برنامج"
+        
+        # إعادة كتابة settings.gradle لضمان التوافق المطلق وتجنب تعارض الخوادم
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -46,10 +44,9 @@ jobs:
             }
         }
         rootProject.name = "hak"
-        include ':app'
         EOF
 
-        # 2. ملف build.gradle في المجلد الرئيسي (هنا لا نضيف خوادم، فقط الكلاس باث)
+        # إعادة كتابة build.gradle الرئيسي للتخلص من تعارض allprojects
         cat << 'EOF' > build.gradle
         buildscript {
             repositories {
@@ -61,236 +58,14 @@ jobs:
                 classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.10'
             }
         }
-        // تم إزالة allprojects {} من هنا لتفادي التعارض مع settings.gradle
         EOF
 
-    - name: Generate App Configuration
-      run: |
-        # 3. ملف build.gradle داخل مجلد app الافتراضي
-        cat << 'EOF' > app/build.gradle
-        apply plugin: 'com.android.application'
-        apply plugin: 'kotlin-android'
-
-        android {
-            namespace 'com.example.hak'
-            compileSdk 34
-
-            defaultConfig {
-                applicationId "com.example.hak"
-                minSdk 26
-                targetSdk 34
-                versionCode 1
-                versionName "1.0"
-            }
-
-            buildTypes {
-                release {
-                    minifyEnabled false
-                }
-            }
-            compileOptions {
-                sourceCompatibility JavaVersion.VERSION_17
-                targetCompatibility JavaVersion.VERSION_17
-            }
-            kotlinOptions {
-                jvmTarget = '17'
-            }
-        }
-
-        dependencies {
-            implementation 'androidx.core:core-ktx:1.12.0'
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.11.0'
-            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-        }
-        EOF
-
-    - name: Inject Android Manifest and Layout
-      run: |
-        cat << 'EOF' > app/src/main/AndroidManifest.xml
-        <?xml version="1.0" encoding="utf-8"?>
-        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-            <application
-                android:allowBackup="true"
-                android:label="Billiard Lines"
-                android:supportsRtl="true"
-                android:theme="@style/Theme.AppCompat.NoActionBar">
-                <activity
-                    android:name=".MainActivity"
-                    android:exported="true">
-                    <intent-filter>
-                        <action android:name="android.intent.action.MAIN"/>
-                        <category android:name="android.intent.category.LAUNCHER"/>
-                    </intent-filter>
-                </activity>
-                <service
-                    android:name=".OverlayService"
-                    android:exported="false"/>
-            </application>
-        </manifest>
-        EOF
-
-        cat << 'EOF' > app/src/main/res/layout/activity_main.xml
-        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="16dp">
-            <Button
-                android:id="@+id/btnStart"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Start Overlay"/>
-            <Button
-                android:id="@+id/btnStop"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Stop Overlay"
-                android:layout_marginTop="8dp"/>
-            <SeekBar
-                android:id="@+id/seekBarLength"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:max="500"
-                android:progress="200"
-                android:layout_marginTop="16dp"/>
-        </LinearLayout>
-        EOF
-
-        cat << 'EOF' > app/src/main/res/values/colors.xml
-        <resources>
-            <color name="black">#000000</color>
-            <color name="white">#FFFFFF</color>
-        </resources>
-        EOF
-
-    - name: Inject Source Code (Kotlin)
-      run: |
-        cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
-        package com.example.hak
-        import android.content.Intent
-        import android.net.Uri
-        import android.os.Build
-        import android.os.Bundle
-        import android.provider.Settings
-        import android.widget.*
-        import androidx.appcompat.app.AppCompatActivity
-
-        class MainActivity : AppCompatActivity() {
-            override fun onCreate(savedInstanceState: Bundle?) {
-                super.onCreate(savedInstanceState)
-                setContentView(R.layout.activity_main)
-
-                val btnStart = findViewById<Button>(R.id.btnStart)
-                val btnStop = findViewById<Button>(R.id.btnStop)
-                val seekBar = findViewById<SeekBar>(R.id.seekBarLength)
-
-                btnStart.setOnClickListener {
-                    if (Settings.canDrawOverlays(this)) {
-                        startService(Intent(this, OverlayService::class.java))
-                    } else {
-                        startActivity(Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:$packageName")
-                        ))
-                    }
-                }
-
-                btnStop.setOnClickListener {
-                    stopService(Intent(this, OverlayService::class.java))
-                }
-
-                seekBar.setOnSeekBarChangeListener(object: SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                        OverlayService.lineLength = progress
-                    }
-                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-                })
-            }
-        }
-        EOF
-
-        cat << 'EOF' > app/src/main/java/com/example/hak/OverlayService.kt
-        package com.example.hak
-        import android.app.Service
-        import android.content.*
-        import android.graphics.PixelFormat
-        import android.os.*
-        import android.view.*
-
-        class OverlayService : Service() {
-            private lateinit var windowManager: WindowManager
-            private lateinit var overlayView: OverlayView
-
-            companion object {
-                var lineLength = 200
-            }
-
-            override fun onBind(intent: Intent?) = null
-
-            override fun onCreate() {
-                super.onCreate()
-                windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-                overlayView = OverlayView(this)
-
-                val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                else
-                    WindowManager.LayoutParams.TYPE_PHONE
-
-                val params = WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    type,
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                    PixelFormat.TRANSLUCENT
-                )
-                windowManager.addView(overlayView, params)
-            }
-
-            override fun onDestroy() {
-                super.onDestroy()
-                windowManager.removeView(overlayView)
-            }
-        }
-        EOF
-
-        cat << 'EOF' > app/src/main/java/com/example/hak/OverlayView.kt
-        package com.example.hak
-        import android.content.Context
-        import android.graphics.*
-        import android.view.View
-
-        class OverlayView(context: Context) : View(context) {
-            private val paint = Paint().apply {
-                color = Color.RED
-                strokeWidth = 5f
-            }
-            override fun onDraw(canvas: Canvas) {
-                val w = width / 2f
-                val h = height / 2f
-                val len = OverlayService.lineLength.toFloat()
-
-                canvas.drawLine(w - len, h, w + len, h, paint)
-                canvas.drawLine(w, h - len, w, h + len, paint)
-                invalidate()
-            }
-        }
-        EOF
-
-    - name: Setup Gradle Environment
-      uses: gradle/actions/setup-gradle@v3
-      with:
-        gradle-version: 8.1.1
-
-    - name: Build Application Package
-      run: gradle :app:assembleDebug
+        # بناء التطبيق مباشرة باستخدام أداة Gradle المضافة للبيئة
+        gradle assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: billiard-lines-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        path: برنامج/build/outputs/apk/debug/برنامج-debug.apk
+        # إذا كان الاسم الافتراضي للتجميع داخل المجلد هو app، سيتم رفعه تلقائياً عبر المسار المحدث
