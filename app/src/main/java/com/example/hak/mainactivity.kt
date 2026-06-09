@@ -1,17 +1,13 @@
-package com.poolmaster.overlay
-
-import android.app.Activity
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
+Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.SeekBar
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
 
-class MainActivity : Activity() {
+class MainActivity : AppCompatActivity() {
 
     companion object {
         var lineColor: Int = 0xFF00FFFF.toInt() // Cyan default
@@ -90,3 +86,4 @@ class MainActivity : Activity() {
         })
     }
 }
+
