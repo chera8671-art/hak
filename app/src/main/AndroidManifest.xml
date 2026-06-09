@@ -1,1 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.poolmaster.overlay">
 
+    <!-- ✅ صلاحية الرسم فوق التطبيقات الأخرى (التراكب) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    
+    <!-- ✅ صلاحية تشغيل الخدمة الأمامية (مطلوبة للإصدارات الحديثة) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    
+    <!-- ✅ صلاحية الخدمة الأمامية لنوع mediaProjection (لتحديد نوع الخدمة) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PoolMasterOverlay"
+        android:requestLegacyExternalStorage="true"
+        android:usesCleartextTraffic="true"
+        tools:targetApi="31">
+        
+        <!-- ✅ النشاط الرئيسي -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
+        <!-- ✅ خدمة الـ Overlay (الجزء المفقود والأهم!) -->
+        <service
+            android:name=".OverlayService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+        
+        <!-- ✅ إضافة نشاط شفاف للطلبات (اختياري لكن مفيد) -->
+        <activity
+            android:name=".TransparentActivity"
+            android:theme="@style/Theme.AppCompat.Translucent"
+            android:exported="false" />
+            
+    </application>
+    
+</manifest>
