@@ -29,7 +29,7 @@ jobs:
 
     - name: Generate Root Configuration
       run: |
-        # 1. ملف settings.gradle في المجلد الرئيسي
+        # 1. ملف settings.gradle في المجلد الرئيسي (هنا نعتمد الخوادم لضمان عدم التعارض)
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -49,7 +49,7 @@ jobs:
         include ':app'
         EOF
 
-        # 2. ملف build.gradle في المجلد الرئيسي
+        # 2. ملف build.gradle في المجلد الرئيسي (هنا لا نضيف خوادم، فقط الكلاس باث)
         cat << 'EOF' > build.gradle
         buildscript {
             repositories {
@@ -61,12 +61,7 @@ jobs:
                 classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.10'
             }
         }
-        allprojects {
-            repositories {
-                google()
-                mavenCentral()
-            }
-        }
+        // تم إزالة allprojects {} من هنا لتفادي التعارض مع settings.gradle
         EOF
 
     - name: Generate App Configuration
@@ -119,6 +114,7 @@ jobs:
             <application
                 android:allowBackup="true"
                 android:label="Billiard Lines"
+                android:supportsRtl="true"
                 android:theme="@style/Theme.AppCompat.NoActionBar">
                 <activity
                     android:name=".MainActivity"
