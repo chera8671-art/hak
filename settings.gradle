@@ -1,1 +1,5 @@
+// هذا الإصدار يعمل مع كل شيء - من Gradle 4.x إلى 8.x
 include ':app'
+
+// الإعدادات التالية اختيارية ولكنها تضمن التوافق
+rootProject.name = "PoolMaster"
