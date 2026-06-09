@@ -20,15 +20,18 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    - name: Force Clean and Structures
+    - name: Auto Fix Structure and Clean
       run: |
-        rm -rf app app-module برنامج res جرادلر
+        # حذف أي مجلدات مكررة أو ناتجة عن الرفع الخاطئ والترجمة تلقائياً
+        rm -rf app app-module برنامج res جرادلر build.gradle settings.gradle
+        
+        # إنشاء الهيكل النظيف والمسارات الرسمية لأندرويد
         mkdir -p app/src/main/java/com/example/hak
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
         mkdir -p gradle/wrapper
 
-    - name: Create Base Project Files
+    - name: Auto Generate Base Configs
       run: |
         cat << 'EOF' > settings.gradle
         pluginManagement {
@@ -101,7 +104,7 @@ jobs:
         zipStorePath=wrapper/dists
         EOF
 
-    - name: Inject Source Code Files
+    - name: Inject Safe Resources
       run: |
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
@@ -112,7 +115,6 @@ jobs:
                 android:allowBackup="true"
                 android:icon="@mipmap/ic_launcher"
                 android:label="Billiard Lines"
-                android:roundIcon="@mipmap/ic_launcher_round"
                 android:supportsRtl="true"
                 android:theme="@style/Theme.AppCompat.NoActionBar">
                 <activity
@@ -167,7 +169,7 @@ jobs:
         </resources>
         EOF
 
-    - name: Inject Kotlin Code
+    - name: Inject Safe Code
       run: |
         cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
         package com.example.hak
@@ -250,9 +252,6 @@ jobs:
             private var overlayView: OverlayView? = null
             companion object {
                 var lineLength: Int = 200
-                    set(value) {
-                        field = value
-                    }
             }
             override fun onBind(intent: Intent?): IBinder? = null
             override fun onCreate() {
@@ -312,11 +311,16 @@ jobs:
         }
         EOF
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew || true
+    - name: Try Build with Local Gradle
+      run: |
+        chmod +x gradlew || true
+        ./gradlew assembleDebug || echo "Local gradle failed, falling back to safe wrapper..."
 
-    - name: Build with Gradle
-      run: ./gradlew assembleDebug || npx --yes android-gradle-wrapper assembleDebug
+    - name: Safe Fallback Build (If local fails)
+      run: |
+        if [ ! -f app/build/outputs/apk/debug/app-debug.apk ]; then
+          npx --yes android-gradle-wrapper assembleDebug
+        fi
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
