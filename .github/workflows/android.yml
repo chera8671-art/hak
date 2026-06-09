@@ -17,19 +17,33 @@ jobs:
         distribution: 'zulu'
         java-version: '17'
 
-    - name: Clean and create fresh project structure
-      run: |
-        # إزالة أي ملفات قديمة أو متعارضة
-        rm -rf app gradle build.gradle settings.gradle gradlew gradlew.bat .gradle
+    - name: Clean previous builds
+      run: rm -rf app gradle build .gradle gradlew gradlew.bat
 
-        # إنشاء هيكل المشروع الصحيح
+    - name: Create project structure
+      run: |
         mkdir -p app/src/main/java/com/example/hak
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
 
-    - name: Create root configuration files
+    - name: Create root build.gradle
       run: |
-        # settings.gradle
+        cat << 'EOF' > build.gradle
+        buildscript {
+            ext.kotlin_version = '1.8.20'
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:7.4.2'
+                classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+            }
+        }
+        EOF
+
+    - name: Create settings.gradle
+      run: |
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -45,25 +59,20 @@ jobs:
                 mavenCentral()
             }
         }
-        rootProject.name = "billiard-lines"
         include ':app'
+        rootProject.name = 'BilliardLines'
         EOF
 
-        # build.gradle (root)
-        cat << 'EOF' > build.gradle
-        buildscript {
-            repositories {
-                google()
-                mavenCentral()
-            }
-            dependencies {
-                classpath 'com.android.tools.build:gradle:8.1.1'
-                classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0'
-            }
-        }
+    - name: Create gradle.properties
+      run: |
+        cat << 'EOF' > gradle.properties
+        org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
+        android.useAndroidX=true
+        android.enableJetifier=true
+        kotlin.code.style=official
         EOF
 
-    - name: Create app module build.gradle
+    - name: Create app/build.gradle
       run: |
         cat << 'EOF' > app/build.gradle
         apply plugin: 'com.android.application'
@@ -71,12 +80,12 @@ jobs:
 
         android {
             namespace 'com.example.hak'
-            compileSdk 34
+            compileSdk 33
 
             defaultConfig {
                 applicationId "com.example.hak"
                 minSdk 26
-                targetSdk 34
+                targetSdk 33
                 versionCode 1
                 versionName "1.0"
             }
@@ -98,10 +107,9 @@ jobs:
         }
 
         dependencies {
-            implementation 'androidx.core:core-ktx:1.12.0'
+            implementation 'androidx.core:core-ktx:1.9.0'
             implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'com.google.android.material:material:1.11.0'
-            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+            implementation 'com.google.android.material:material:1.8.0'
         }
         EOF
 
@@ -176,7 +184,7 @@ jobs:
         </resources>
         EOF
 
-    - name: Create Kotlin source files
+    - name: Create Kotlin files (Corrected)
       run: |
         # MainActivity.kt
         cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
@@ -217,7 +225,7 @@ jobs:
 
                 seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                        OverlayService.lineLength = progress
+                        OverlayService.setLineLength(progress)
                     }
                     override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                     override fun onStopTrackingTouch(seekBar: SeekBar?) {}
@@ -242,7 +250,13 @@ jobs:
             private lateinit var overlayView: OverlayView
 
             companion object {
-                var lineLength = 200
+                private var lineLength = 200
+                private var overlayViewRef: OverlayView? = null
+
+                fun setLineLength(length: Int) {
+                    lineLength = length
+                    overlayViewRef?.updateLineLength(length)
+                }
             }
 
             override fun onBind(intent: Intent?): IBinder? = null
@@ -251,6 +265,7 @@ jobs:
                 super.onCreate()
                 windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
                 overlayView = OverlayView(this)
+                overlayViewRef = overlayView
 
                 val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -271,12 +286,13 @@ jobs:
                 super.onDestroy()
                 if (::overlayView.isInitialized) {
                     windowManager.removeView(overlayView)
+                    overlayViewRef = null
                 }
             }
         }
         EOF
 
-        # OverlayView.kt
+        # OverlayView.kt (مع تحديث آمن للطول)
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayView.kt
         package com.example.hak
 
@@ -292,28 +308,34 @@ jobs:
                 strokeWidth = 5f
                 isAntiAlias = true
             }
+            private var currentLength = 200
+
+            fun updateLineLength(length: Int) {
+                if (currentLength != length) {
+                    currentLength = length
+                    invalidate()
+                }
+            }
 
             override fun onDraw(canvas: Canvas) {
                 super.onDraw(canvas)
                 val centerX = width / 2f
                 val centerY = height / 2f
-                val halfLength = OverlayService.lineLength.toFloat()
+                val halfLen = currentLength.toFloat()
 
-                canvas.drawLine(centerX - halfLength, centerY, centerX + halfLength, centerY, paint)
-                canvas.drawLine(centerX, centerY - halfLength, centerX, centerY + halfLength, paint)
-
-                invalidate()
+                canvas.drawLine(centerX - halfLen, centerY, centerX + halfLen, centerY, paint)
+                canvas.drawLine(centerX, centerY - halfLen, centerX, centerY + halfLen, paint)
             }
         }
         EOF
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
-      with:
-        gradle-version: 8.1.1
+    - name: Generate Gradle Wrapper
+      run: |
+        gradle wrapper --gradle-version 7.5
+        chmod +x gradlew
 
     - name: Build debug APK
-      run: gradle :app:assembleDebug --stacktrace
+      run: ./gradlew :app:assembleDebug --stacktrace
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
