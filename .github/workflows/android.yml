@@ -14,88 +14,47 @@ jobs:
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
-        distribution: 'zulu'
+        distribution: 'temurin'
         java-version: '17'
 
-    - name: Clean previous builds
-      run: rm -rf app gradle .gradle gradlew gradlew.bat
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
 
     - name: Create project structure
       run: |
+        rm -rf app build.gradle settings.gradle gradle gradlew gradlew.bat
         mkdir -p app/src/main/java/com/example/hak
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
-
-    - name: Create gradle wrapper properties
-      run: |
-        mkdir -p gradle/wrapper
-        cat << 'EOF' > gradle/wrapper/gradle-wrapper.properties
-        distributionBase=GRADLE_USER_HOME
-        distributionPath=wrapper/dists
-        distributionUrl=https\://services.gradle.org/distributions/gradle-7.5-bin.zip
-        zipStoreBase=GRADLE_USER_HOME
-        zipStorePath=wrapper/dists
-        EOF
-
-    - name: Download and create gradlew script
-      run: |
-        # تحميل gradle-wrapper.jar الرسمي
-        curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v7.5.0/gradle/wrapper/gradle-wrapper.jar
-        # إنشاء ملف gradlew
-        cat << 'EOF' > gradlew
-        #!/bin/sh
-        exec java -cp "\$0"/../gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain "\$@"
-        EOF
-        chmod +x gradlew
-        # نسخة ويندوز (اختياري)
-        cat << 'EOF' > gradlew.bat
-        @if "%DEBUG%" == "" @echo off
-        @rem ##########################################################################
-        @rem
-        @rem  Gradle startup script for Windows
-        @rem
-        @rem ##########################################################################
-        set DIRNAME=%~dp0
-        set CLASSPATH=%DIRNAME%gradle\wrapper\gradle-wrapper.jar
-        java -cp %CLASSPATH% org.gradle.wrapper.GradleWrapperMain %*
-        EOF
 
     - name: Create root build.gradle
       run: |
         cat << 'EOF' > build.gradle
         buildscript {
-            ext.kotlin_version = '1.8.20'
-            repositories {
-                google()
-                mavenCentral()
-            }
+            repositories { google(); mavenCentral() }
             dependencies {
                 classpath 'com.android.tools.build:gradle:7.4.2'
-                classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+                classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.20'
             }
         }
         allprojects {
-            repositories {
-                google()
-                mavenCentral()
-            }
+            repositories { google(); mavenCentral() }
         }
         EOF
 
     - name: Create settings.gradle
       run: |
         cat << 'EOF' > settings.gradle
-        rootProject.name = "BilliardLines"
         include ':app'
+        rootProject.name = 'BilliardLines'
         EOF
 
     - name: Create gradle.properties
       run: |
         cat << 'EOF' > gradle.properties
-        org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
+        org.gradle.jvmargs=-Xmx2048m
         android.useAndroidX=true
         android.enableJetifier=true
-        kotlin.code.style=official
         EOF
 
     - name: Create app/build.gradle
@@ -107,7 +66,6 @@ jobs:
         android {
             namespace 'com.example.hak'
             compileSdk 33
-
             defaultConfig {
                 applicationId "com.example.hak"
                 minSdk 26
@@ -115,21 +73,12 @@ jobs:
                 versionCode 1
                 versionName "1.0"
             }
-
-            buildTypes {
-                release {
-                    minifyEnabled false
-                }
-            }
-
+            buildTypes { release { minifyEnabled false } }
             compileOptions {
                 sourceCompatibility JavaVersion.VERSION_17
                 targetCompatibility JavaVersion.VERSION_17
             }
-
-            kotlinOptions {
-                jvmTarget = '17'
-            }
+            kotlinOptions { jvmTarget = '17' }
         }
 
         dependencies {
@@ -145,23 +94,15 @@ jobs:
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-            <application
-                android:allowBackup="true"
-                android:label="Billiard Lines"
-                android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar"
-                android:supportsRtl="true">
-                <activity
-                    android:name=".MainActivity"
-                    android:exported="true">
+            <application android:allowBackup="true" android:label="Billiard Lines"
+                android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar">
+                <activity android:name=".MainActivity" android:exported="true">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />
                         <category android:name="android.intent.category.LAUNCHER" />
                     </intent-filter>
                 </activity>
-                <service
-                    android:name=".OverlayService"
-                    android:exported="false" />
+                <service android:name=".OverlayService" android:exported="false" />
             </application>
         </manifest>
         EOF
@@ -169,52 +110,29 @@ jobs:
     - name: Create layout and resources
       run: |
         cat << 'EOF' > app/src/main/res/layout/activity_main.xml
-        <?xml version="1.0" encoding="utf-8"?>
         <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
             android:gravity="center"
             android:padding="16dp">
-            <Button
-                android:id="@+id/btnStart"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Start Overlay" />
-            <Button
-                android:id="@+id/btnStop"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Stop Overlay"
-                android:layout_marginTop="8dp" />
-            <SeekBar
-                android:id="@+id/seekBarLength"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:max="500"
-                android:progress="200"
-                android:layout_marginTop="16dp" />
+            <Button android:id="@+id/btnStart" android:text="Start Overlay"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+            <Button android:id="@+id/btnStop" android:text="Stop Overlay"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"/>
+            <SeekBar android:id="@+id/seekBarLength" android:max="500"
+                android:progress="200" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginTop="16dp"/>
         </LinearLayout>
         EOF
+        echo '<resources><color name="black">#000000</color><color name="white">#FFFFFF</color></resources>' > app/src/main/res/values/colors.xml
+        echo '<resources><string name="app_name">Billiard Lines</string></resources>' > app/src/main/res/values/strings.xml
 
-        cat << 'EOF' > app/src/main/res/values/colors.xml
-        <resources>
-            <color name="black">#000000</color>
-            <color name="white">#FFFFFF</color>
-        </resources>
-        EOF
-
-        cat << 'EOF' > app/src/main/res/values/strings.xml
-        <resources>
-            <string name="app_name">Billiard Lines</string>
-        </resources>
-        EOF
-
-    - name: Create Kotlin source files
+    - name: Create Kotlin files
       run: |
         cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
         package com.example.hak
-
         import android.content.Intent
         import android.net.Uri
         import android.os.Bundle
@@ -222,32 +140,18 @@ jobs:
         import android.widget.Button
         import android.widget.SeekBar
         import androidx.appcompat.app.AppCompatActivity
-
         class MainActivity : AppCompatActivity() {
             override fun onCreate(savedInstanceState: Bundle?) {
                 super.onCreate(savedInstanceState)
                 setContentView(R.layout.activity_main)
-
                 val btnStart = findViewById<Button>(R.id.btnStart)
                 val btnStop = findViewById<Button>(R.id.btnStop)
                 val seekBar = findViewById<SeekBar>(R.id.seekBarLength)
-
                 btnStart.setOnClickListener {
-                    if (Settings.canDrawOverlays(this)) {
-                        startService(Intent(this, OverlayService::class.java))
-                    } else {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:$packageName")
-                        )
-                        startActivity(intent)
-                    }
+                    if (Settings.canDrawOverlays(this)) startService(Intent(this, OverlayService::class.java))
+                    else startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
                 }
-
-                btnStop.setOnClickListener {
-                    stopService(Intent(this, OverlayService::class.java))
-                }
-
+                btnStop.setOnClickListener { stopService(Intent(this, OverlayService::class.java)) }
                 seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                         OverlayService.setLineLength(progress)
@@ -261,41 +165,28 @@ jobs:
 
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayService.kt
         package com.example.hak
-
         import android.app.Service
         import android.content.Intent
         import android.graphics.PixelFormat
         import android.os.Build
         import android.os.IBinder
         import android.view.WindowManager
-
         class OverlayService : Service() {
             private lateinit var windowManager: WindowManager
             private lateinit var overlayView: OverlayView
-
             companion object {
                 private var lineLength = 200
                 private var overlayViewRef: OverlayView? = null
-
-                fun setLineLength(length: Int) {
-                    lineLength = length
-                    overlayViewRef?.updateLineLength(length)
-                }
+                fun setLineLength(length: Int) { lineLength = length; overlayViewRef?.updateLineLength(length) }
             }
-
             override fun onBind(intent: Intent?): IBinder? = null
-
             override fun onCreate() {
                 super.onCreate()
                 windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
                 overlayView = OverlayView(this)
                 overlayViewRef = overlayView
-
-                val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                else
-                    WindowManager.LayoutParams.TYPE_PHONE
-
+                val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                           else WindowManager.LayoutParams.TYPE_PHONE
                 val params = WindowManager.LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT,
@@ -305,55 +196,43 @@ jobs:
                 )
                 windowManager.addView(overlayView, params)
             }
-
             override fun onDestroy() {
                 super.onDestroy()
-                if (::overlayView.isInitialized) {
-                    windowManager.removeView(overlayView)
-                    overlayViewRef = null
-                }
+                if (::overlayView.isInitialized) windowManager.removeView(overlayView)
+                overlayViewRef = null
             }
         }
         EOF
 
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayView.kt
         package com.example.hak
-
         import android.content.Context
         import android.graphics.Canvas
         import android.graphics.Color
         import android.graphics.Paint
         import android.view.View
-
         class OverlayView(context: Context) : View(context) {
-            private val paint = Paint().apply {
-                color = Color.RED
-                strokeWidth = 5f
-                isAntiAlias = true
-            }
+            private val paint = Paint().apply { color = Color.RED; strokeWidth = 5f; isAntiAlias = true }
             private var currentLength = 200
-
-            fun updateLineLength(length: Int) {
-                if (currentLength != length) {
-                    currentLength = length
-                    invalidate()
-                }
-            }
-
+            fun updateLineLength(length: Int) { if (currentLength != length) { currentLength = length; invalidate() } }
             override fun onDraw(canvas: Canvas) {
                 super.onDraw(canvas)
                 val centerX = width / 2f
                 val centerY = height / 2f
                 val halfLen = currentLength.toFloat()
-
                 canvas.drawLine(centerX - halfLen, centerY, centerX + halfLen, centerY, paint)
                 canvas.drawLine(centerX, centerY - halfLen, centerX, centerY + halfLen, paint)
             }
         }
         EOF
 
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: 7.5
+
     - name: Build debug APK
-      run: ./gradlew :app:assembleDebug --stacktrace
+      run: gradle :app:assembleDebug --stacktrace
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
