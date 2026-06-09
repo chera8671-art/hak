@@ -17,22 +17,19 @@ jobs:
         distribution: 'zulu'
         java-version: '17'
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
-
-    - name: Clear and Absolute Reset
+    - name: Clear and Reset Environment
       run: |
-        # حذف كل المجلدات والملفات القديمة تماماً لضمان بيئة نظيفة 100%
+        # تنظيف كامل لأي تراكمات قديمة في المستودع
         rm -rf app app-module برنامج res gradle build.gradle settings.gradle gradlew gradlew.bat
         
-        # إنشاء المجلدات الرسمية لهيكل أندرويد بالإنجليزية
+        # إعادة بناء المجلدات الأساسية للمشروع
         mkdir -p app/src/main/java/com/example/hak
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
 
-    - name: Create Base Project Configuration
+    - name: Generate Configuration Files
       run: |
-        # إنشاء ملف settings.gradle الرئيسي في جذر المستودع
+        # إنشاء ملف settings.gradle
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -52,7 +49,7 @@ jobs:
         include ':app'
         EOF
 
-        # إنشاء ملف build.gradle الرئيسي في جذر المستودع
+        # إنشاء ملف build.gradle الرئيسي
         cat << 'EOF' > build.gradle
         plugins {
             id 'com.android.application' version '8.1.1' apply false
@@ -61,7 +58,7 @@ jobs:
         }
         EOF
 
-        # إنشاء ملف build.gradle الخاص بمجلد التطبيق app
+        # إنشاء ملف build.gradle الخاص بتطبيق أندرويد
         cat << 'EOF' > app/build.gradle
         plugins {
             id 'com.android.application'
@@ -98,8 +95,9 @@ jobs:
         }
         EOF
 
-    - name: Inject Android Manifest and Layout
+    - name: Generate Code and Resources
       run: |
+        # حقن ملف Manifest الخاص بصلاحية النافذة المنبثقة
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -125,6 +123,7 @@ jobs:
         </manifest>
         EOF
 
+        # حقن واجهة التحكم الرئيسية والـ SeekBar لضبط طول الخطوط
         cat << 'EOF' > app/src/main/res/layout/activity_main.xml
         <?xml version="1.0" encoding="utf-8"?>
         <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -154,6 +153,7 @@ jobs:
         </LinearLayout>
         EOF
 
+        # حقن ملف الألوان الأساسي
         cat << 'EOF' > app/src/main/res/values/colors.xml
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
@@ -162,8 +162,9 @@ jobs:
         </resources>
         EOF
 
-    - name: Inject Application Source Code (Kotlin)
+    - name: Generate Application Code (Kotlin)
       run: |
+        # كود النشاط الرئيسي MainActivity
         cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
         package com.example.hak
         import android.content.Intent
@@ -230,6 +231,7 @@ jobs:
         }
         EOF
 
+        # كود الخلفية والخدمة المشغلة للنافذة المنبثقة OverlayService
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayService.kt
         package com.example.hak
         import android.app.Service
@@ -277,6 +279,7 @@ jobs:
         }
         EOF
 
+        # كود رسم خطوط البلياردو المتقاطعة OverlayView
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayView.kt
         package com.example.hak
         import android.content.Context
@@ -304,12 +307,11 @@ jobs:
         }
         EOF
 
-    - name: Initialize Wrapper and Build
-      run: |
-        # توليد ملفات السكربت التنفيذية لـ Gradle بشكل مستقل ونظيف تماماً لتفادي الأخطاء السابقة
-        gradle wrapper --gradle-version 8.1.1
-        chmod +x gradlew
-        ./gradlew assembleDebug
+    - name: Execute Build via Official Gradle Action
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: 8.1.1
+        arguments: assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
