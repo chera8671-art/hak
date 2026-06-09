@@ -22,12 +22,14 @@ jobs:
       with:
         gradle-version: 8.1.1
 
-    - name: Fix Configurations & Build from Program Folder
+    - name: Auto-Detect Project Folder and Build
       run: |
-        # الدخول إلى المجلد الذي يحتوي على المشروع بناءً على صور المستودع لديك
-        cd "برنامج"
+        # البحث التلقائي عن المجلد الذي يحتوي على ملف src و build.gradle والدخول إليه مهما كان اسمه
+        PROJECT_DIR=$(find . -maxdepth 2 -name "src" -type d -exec dirname {} \;)
+        echo "Found Android project folder at: $PROJECT_DIR"
+        cd "$PROJECT_DIR"
         
-        # إعادة كتابة settings.gradle لضمان التوافق المطلق وتجنب تعارض الخوادم
+        # 1. إنشاء ملف settings.gradle نظيف داخل مجلد المشروع لمنع تضارب الخوادم
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -43,10 +45,10 @@ jobs:
                 mavenCentral()
             }
         }
-        rootProject.name = "hak"
+        rootProject.name = "billiard-lines"
         EOF
 
-        # إعادة كتابة build.gradle الرئيسي للتخلص من تعارض allprojects
+        # 2. إنشاء ملف build.gradle الرئيسي النظيف
         cat << 'EOF' > build.gradle
         buildscript {
             repositories {
@@ -60,12 +62,11 @@ jobs:
         }
         EOF
 
-        # بناء التطبيق مباشرة باستخدام أداة Gradle المضافة للبيئة
+        # 3. تشغيل عملية البناء مباشرة من داخل مجلد المشروع
         gradle assembleDebug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: billiard-lines-apk
-        path: برنامج/build/outputs/apk/debug/برنامج-debug.apk
-        # إذا كان الاسم الافتراضي للتجميع داخل المجلد هو app، سيتم رفعه تلقائياً عبر المسار المحدث
+        path: "**/build/outputs/apk/debug/*-debug.apk"
