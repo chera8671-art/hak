@@ -18,13 +18,47 @@ jobs:
         java-version: '17'
 
     - name: Clean previous builds
-      run: rm -rf app gradle build .gradle gradlew gradlew.bat
+      run: rm -rf app gradle .gradle gradlew gradlew.bat
 
     - name: Create project structure
       run: |
         mkdir -p app/src/main/java/com/example/hak
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
+
+    - name: Create gradle wrapper properties
+      run: |
+        mkdir -p gradle/wrapper
+        cat << 'EOF' > gradle/wrapper/gradle-wrapper.properties
+        distributionBase=GRADLE_USER_HOME
+        distributionPath=wrapper/dists
+        distributionUrl=https\://services.gradle.org/distributions/gradle-7.5-bin.zip
+        zipStoreBase=GRADLE_USER_HOME
+        zipStorePath=wrapper/dists
+        EOF
+
+    - name: Download and create gradlew script
+      run: |
+        # تحميل gradle-wrapper.jar الرسمي
+        curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v7.5.0/gradle/wrapper/gradle-wrapper.jar
+        # إنشاء ملف gradlew
+        cat << 'EOF' > gradlew
+        #!/bin/sh
+        exec java -cp "\$0"/../gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain "\$@"
+        EOF
+        chmod +x gradlew
+        # نسخة ويندوز (اختياري)
+        cat << 'EOF' > gradlew.bat
+        @if "%DEBUG%" == "" @echo off
+        @rem ##########################################################################
+        @rem
+        @rem  Gradle startup script for Windows
+        @rem
+        @rem ##########################################################################
+        set DIRNAME=%~dp0
+        set CLASSPATH=%DIRNAME%gradle\wrapper\gradle-wrapper.jar
+        java -cp %CLASSPATH% org.gradle.wrapper.GradleWrapperMain %*
+        EOF
 
     - name: Create root build.gradle
       run: |
@@ -40,27 +74,19 @@ jobs:
                 classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
             }
         }
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
         EOF
 
     - name: Create settings.gradle
       run: |
         cat << 'EOF' > settings.gradle
-        pluginManagement {
-            repositories {
-                google()
-                mavenCentral()
-                gradlePluginPortal()
-            }
-        }
-        dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories {
-                google()
-                mavenCentral()
-            }
-        }
+        rootProject.name = "BilliardLines"
         include ':app'
-        rootProject.name = 'BilliardLines'
         EOF
 
     - name: Create gradle.properties
@@ -184,9 +210,8 @@ jobs:
         </resources>
         EOF
 
-    - name: Create Kotlin files (Corrected)
+    - name: Create Kotlin source files
       run: |
-        # MainActivity.kt
         cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
         package com.example.hak
 
@@ -234,7 +259,6 @@ jobs:
         }
         EOF
 
-        # OverlayService.kt
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayService.kt
         package com.example.hak
 
@@ -292,7 +316,6 @@ jobs:
         }
         EOF
 
-        # OverlayView.kt (مع تحديث آمن للطول)
         cat << 'EOF' > app/src/main/java/com/example/hak/OverlayView.kt
         package com.example.hak
 
@@ -328,11 +351,6 @@ jobs:
             }
         }
         EOF
-
-    - name: Generate Gradle Wrapper
-      run: |
-        gradle wrapper --gradle-version 7.5
-        chmod +x gradlew
 
     - name: Build debug APK
       run: ./gradlew :app:assembleDebug --stacktrace
