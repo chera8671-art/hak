@@ -20,18 +20,19 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    - name: Clean and Reset Structure
+    - name: Clear and Absolute Reset
       run: |
-        # تنظيف شامل لكل المجلدات السابقة لتفادي التكرار والأسماء المترجمة
-        rm -rf app app-module برنامج res جرادلر build.gradle settings.gradle gradle
+        # حذف كل المجلدات والملفات القديمة تماماً لضمان بيئة نظيفة 100%
+        rm -rf app app-module برنامج res gradle build.gradle settings.gradle gradlew gradlew.bat
         
-        # إنشاء المجلدات بالأسماء الإنجليزية الرسمية التي يطلبها السيرفر
+        # إنشاء المجلدات الرسمية لهيكل أندرويد بالإنجليزية
         mkdir -p app/src/main/java/com/example/hak
         mkdir -p app/src/main/res/layout
         mkdir -p app/src/main/res/values
 
-    - name: Create Base Config Files
+    - name: Create Base Project Configuration
       run: |
+        # إنشاء ملف settings.gradle الرئيسي في جذر المستودع
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -51,6 +52,7 @@ jobs:
         include ':app'
         EOF
 
+        # إنشاء ملف build.gradle الرئيسي في جذر المستودع
         cat << 'EOF' > build.gradle
         plugins {
             id 'com.android.application' version '8.1.1' apply false
@@ -59,6 +61,7 @@ jobs:
         }
         EOF
 
+        # إنشاء ملف build.gradle الخاص بمجلد التطبيق app
         cat << 'EOF' > app/build.gradle
         plugins {
             id 'com.android.application'
@@ -95,7 +98,7 @@ jobs:
         }
         EOF
 
-    - name: Inject Source Code Files
+    - name: Inject Android Manifest and Layout
       run: |
         cat << 'EOF' > app/src/main/AndroidManifest.xml
         <?xml version="1.0" encoding="utf-8"?>
@@ -159,7 +162,7 @@ jobs:
         </resources>
         EOF
 
-    - name: Inject Kotlin Code
+    - name: Inject Application Source Code (Kotlin)
       run: |
         cat << 'EOF' > app/src/main/java/com/example/hak/MainActivity.kt
         package com.example.hak
@@ -301,8 +304,9 @@ jobs:
         }
         EOF
 
-    - name: Generate Wrapper and Build APK
+    - name: Initialize Wrapper and Build
       run: |
+        # توليد ملفات السكربت التنفيذية لـ Gradle بشكل مستقل ونظيف تماماً لتفادي الأخطاء السابقة
         gradle wrapper --gradle-version 8.1.1
         chmod +x gradlew
         ./gradlew assembleDebug
